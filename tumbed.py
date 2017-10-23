@@ -29,14 +29,34 @@
 # For more information, please refer to <http://unlicense.org>
 #
 
+from datetime import datetime, timedelta
 import traceback
 import os
 import json
 import github
 import jinja2
+import sched
+import time
 
 Username = None
 Password = None
+
+def manual(gh, repos, target):
+    for repo in repos:
+        ghRepo = gh.get_repo(repo)
+        since = datetime.now() - timedelta(days=1)
+
+        print(" => Scanning {}".format(ghRepo.full_name))
+
+        comments = ghRepo.get_issues_comments(sort = "updated", since = since)
+        for comment in comments:
+            if comment.user.name == target:
+                # Find a way to add a reaction to the comment vote, looks like PyGitHub
+                # Looks like PyGithub doesn't support reactions at the moment as it went inactive
+                # before reactions were introduced on comments.
+                # Regarding: PyGithub/PyGithub#649
+
+                print("  => Comment {} is from {}. Downvoting!".format(page.id, target))
 
 def configure():
     try:
@@ -48,11 +68,40 @@ def configure():
 
     return True
 
+def periodic(scheduler, interval, action, actionargs=()):
+    scheduler.enter(interval, 1, periodic,
+                    (scheduler, interval, action, actionargs))
+    action(*actionargs)
+
 def main():
-    if(configure() is False):
+    if configure() is False:
         return -1
 
-    print(" => Hello and welcome to Tumbed.")
+    print("=> Logging into GitHub...")
+
+    gh = github.Github(Username, Password)
+
+    print("=> Logged in as {}.".format(Username))
+
+    repos = [
+        "ValveSoftware/portal2",
+        "ValveSoftware/Dota-2-Vulkan",
+        "ValveSoftware/Dota-2",
+        "ValveSoftware/Source-1-Games",
+        "ValveSoftware/steam-for-linux",
+        "ValveSoftware/SteamOS",
+        "ValveSoftware/csgo-osx-linux",
+        "ValveSoftware/SteamVR-for-Linux"
+    ]
+    target = "kisak-valve"
+
+    scheduler = sched.scheduler(time.time, time.sleep)
+
+    print( "=> Starting scheduler.")
+
+    periodic(scheduler, 60, manual, (gh, repos, target))
+
+    print("=> Hello and welcome to Tumbed.")
 
     return 0
 
